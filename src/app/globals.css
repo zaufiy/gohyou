@@ -1,0 +1,8 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; color-scheme: dark; }
+  body { @apply bg-paper text-soy font-body antialiased; }
+  h1,h2,h3 { @apply font-display tracking-tight; }
+  :focus-visible { @apply outline outline-2 outline-offset-2 outline-crust; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
