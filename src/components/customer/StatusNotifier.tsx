@@ -1,23 +1,26 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { ORDER_STATUS_CHANGE_EVENT, type OrderStatusChangeDetail } from "@/lib/orderStatusEvents";
 
-type Kind = "ready" | "paid" | "preparing" | "rejected";
+type Kind = "ready" | "paid" | "preparing" | "rejected" | "completed";
 // Nada sederhana (frekuensi Hz, waktu mulai detik).
 const NOTES: Record<Kind, { f: number; at: number }[]> = {
   ready: [784, 988, 1175, 784, 988, 1175].map((f, i) => ({ f, at: i < 3 ? i * 0.18 : 0.9 + (i - 3) * 0.18 })),
   paid: [{ f: 660, at: 0 }, { f: 880, at: 0.2 }],
   preparing: [{ f: 740, at: 0 }],
   rejected: [{ f: 330, at: 0 }, { f: 262, at: 0.25 }],
+  completed: [{ f: 784, at: 0 }, { f: 988, at: 0.2 }, { f: 1175, at: 0.4 }],
 };
-const TITLE: Partial<Record<string, string>> = { ready: "Siap diambil!", paid: "Pembayaran diterima", preparing: "Sedang diproses", payment_rejected: "Pembayaran ditolak" };
+const TITLE: Partial<Record<string, string>> = { ready: "Siap diambil!", paid: "Pembayaran diterima", preparing: "Sedang diproses", payment_rejected: "Pembayaran ditolak", completed: "Pesanan selesai" };
 
 // Bunyi + getar + judul tab saat status pesanan berubah. Tidak bunyi saat halaman pertama dibuka.
-export function StatusNotifier({ status, code }: { status: string; code: string | null }) {
+export function StatusNotifier({ status }: { status: string }) {
   const ctx = useRef<AudioContext | null>(null);
   const prev = useRef(status);
   const baseTitle = useRef("");
   const [enabled, setEnabled] = useState(false);
+  const [notice, setNotice] = useState("");
 
   function ensure() {
     if (!ctx.current) {
@@ -59,18 +62,25 @@ export function StatusNotifier({ status, code }: { status: string; code: string 
   }, []);
 
   useEffect(() => {
-    if (status === prev.current) return;
-    prev.current = status;
-    const kind: Kind | null = status === "ready" ? "ready" : status === "paid" ? "paid" : status === "preparing" ? "preparing" : status === "payment_rejected" ? "rejected" : null;
-    if (!kind) return;
-    play(kind);
-    if (typeof navigator.vibrate === "function") navigator.vibrate(kind === "ready" ? [300, 150, 300, 150, 300] : [200]);
-    document.title = `${TITLE[status] ?? ""} ${code ?? ""}`.trim();
-  }, [status, code]);
+    function onStatusChange(event: Event) {
+      const { status: nextStatus, code: nextCode } = (event as CustomEvent<OrderStatusChangeDetail>).detail;
+      if (nextStatus === prev.current) return;
+      prev.current = nextStatus;
+      const kind: Kind | null = nextStatus === "ready" ? "ready" : nextStatus === "paid" ? "paid" : nextStatus === "preparing" ? "preparing" : nextStatus === "payment_rejected" ? "rejected" : nextStatus === "completed" ? "completed" : null;
+      if (!kind) return;
+      play(kind);
+      if (typeof navigator.vibrate === "function") navigator.vibrate(kind === "ready" ? [300, 150, 300, 150, 300] : kind === "completed" ? [200, 100, 200] : [200]);
+      document.title = `${TITLE[nextStatus] ?? ""} ${nextCode ?? ""}`.trim();
+      if (nextStatus === "completed") setNotice("Pesanan selesai! Terima kasih.");
+    }
+
+    window.addEventListener(ORDER_STATUS_CHANGE_EVENT, onStatusChange);
+    return () => window.removeEventListener(ORDER_STATUS_CHANGE_EVENT, onStatusChange);
+  }, []);
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-steam bg-surface p-3 text-sm">
-      {enabled ? <p>Notifikasi suara aktif. Biarkan halaman ini tetap terbuka.</p> : (
+      {notice ? <p role="status">{notice}</p> : enabled ? <p>Notifikasi suara aktif. Biarkan halaman ini tetap terbuka.</p> : (
         <>
           <p>Aktifkan suara agar kamu tahu saat pesanan siap.</p>
           <Button variant="ghost" className="!min-h-9 !px-4 text-sm" onClick={enable}>Aktifkan suara</Button>

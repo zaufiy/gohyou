@@ -8,6 +8,7 @@ export function PayPanel({ token, expiresAt }: { token: string; expiresAt: strin
   const [left, setLeft] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [claimed, setClaimed] = useState(false);
 
   useEffect(() => {
     const end = new Date(expiresAt).getTime();
@@ -27,12 +28,17 @@ export function PayPanel({ token, expiresAt }: { token: string; expiresAt: strin
     try {
       const res = await fetch(`/api/orders/${token}/claim`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) setError(data.error ?? "Gagal, coba lagi"); else router.refresh();
+      if (!res.ok) setError(data.error ?? "Gagal, coba lagi");
+      else {
+        setClaimed(true);
+        router.refresh();
+      }
     } catch { setError("Koneksi bermasalah, coba lagi"); }
     finally { setBusy(false); }
   }
   const mm = left === null ? "--" : String(Math.floor(left / 60)).padStart(2, "0");
   const ss = left === null ? "--" : String(left % 60).padStart(2, "0");
+  if (claimed) return <p className="text-center">Pembayaranmu sedang dicek operator. Halaman ini akan berubah otomatis.</p>;
   return (
     <div className="space-y-3">
       <p className="text-center">Selesaikan pembayaran dalam <b className="font-display text-xl">{mm}:{ss}</b></p>

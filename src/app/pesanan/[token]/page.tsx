@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { PayPanel } from "@/components/customer/PayPanel";
+import { OrderStatusRefresh } from "@/components/customer/OrderStatusRefresh";
 import { StatusNotifier } from "@/components/customer/StatusNotifier";
 import { formatRupiah, queueLabel } from "@/lib/format";
 
@@ -24,7 +25,7 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
   if (!o) notFound();
   const { data: s } = await sb.from("settings").select("value").eq("key", "qris_image_url").maybeSingle();
   const qris = typeof s?.value === "string" && s.value ? s.value : "/images/qris-gohyong.jpeg";
-  const live = ["awaiting_verification", "paid", "preparing", "ready"].includes(o.status);
+  const live = ["pending_payment", "awaiting_verification", "paid", "preparing", "ready"].includes(o.status);
   const pickup = (o as any).preorder_slots?.pickup_date as string | undefined;
 
   let ahead: number | null = null;
@@ -34,17 +35,19 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
     ahead = count ?? 0;
   }
   const code = o.queue_number != null ? queueLabel(o.type, o.queue_number) : null;
+  const displayCode = code ?? o.public_code;
 
   return (
     <main className="mx-auto max-w-xl space-y-4 p-5">
+      {live && <OrderStatusRefresh token={token} status={o.status} code={code} />}
       {live && <AutoRefresh />}
-      <h1 className="text-3xl font-extrabold">Pesanan {o.public_code}</h1>
+      <h1 className="text-3xl font-extrabold">Pesanan {displayCode}</h1>
       <div className="flex gap-2">
         <Badge tone={o.type === "direct" ? "direct" : "preorder"}>{o.type === "direct" ? "Langsung" : "Pre-order"}</Badge>
-        <Badge tone={o.status === "paid" || o.status === "ready" ? "ok" : "wait"}>{STATUS[o.status] ?? o.status}</Badge>
+        <Badge tone={["paid", "ready", "completed"].includes(o.status) ? "ok" : "wait"}>{STATUS[o.status] ?? o.status}</Badge>
       </div>
-      {["awaiting_verification", "paid", "preparing", "ready", "payment_rejected"].includes(o.status) && <StatusNotifier status={o.status} code={code} />}
-      <p>Atas nama {o.customer_name}. Simpan kode pesanan ini.</p>
+      {["awaiting_verification", "paid", "preparing", "ready", "payment_rejected", "completed"].includes(o.status) && <StatusNotifier status={o.status} />}
+      <p>Atas nama {o.customer_name}. {code ? "Nomor antreanmu sudah tersedia." : "Simpan kode pesanan ini."}</p>
 
       {o.status === "ready" && (
         <Card className="!border-jade !bg-jade text-center text-white">
@@ -52,7 +55,7 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
           <p>Sebutkan nomor <b>{code}</b> ke petugas.</p>
         </Card>
       )}
-      {o.status === "completed" && <Card><p>Terima kasih! Pesananmu sudah selesai.</p></Card>}
+      {o.status === "completed" && <Card className="!border-jade !bg-jade text-center text-white"><p className="font-display text-2xl font-extrabold">Pesanan selesai!</p><p>Terima kasih, pesananmu sudah diambil.</p></Card>}
 
       {o.status === "pending_payment" && (
         <Card className="space-y-3">
