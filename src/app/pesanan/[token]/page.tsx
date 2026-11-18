@@ -3,17 +3,10 @@ import { supabaseAdmin } from "@/server/supabaseAdmin";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { PayPanel } from "@/components/customer/PayPanel";
 import { OrderStatusRefresh } from "@/components/customer/OrderStatusRefresh";
-import { StatusNotifier } from "@/components/customer/StatusNotifier";
 import { formatRupiah, queueLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-const STATUS: Record<string, string> = {
-  pending_payment: "Menunggu pembayaran", awaiting_verification: "Menunggu verifikasi", payment_rejected: "Pembayaran ditolak",
-  expired: "Kedaluwarsa", paid: "Lunas, menunggu giliran", preparing: "Sedang diproses", ready: "Siap diambil", completed: "Selesai",
-};
-const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" });
 
 export default async function OrderPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -39,44 +32,23 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
 
   return (
     <main className="mx-auto max-w-xl space-y-4 p-5">
-      {live && <OrderStatusRefresh token={token} status={o.status} code={code} />}
       {live && <AutoRefresh />}
       <h1 className="text-3xl font-extrabold">Pesanan {displayCode}</h1>
-      <div className="flex gap-2">
-        <Badge tone={o.type === "direct" ? "direct" : "preorder"}>{o.type === "direct" ? "Langsung" : "Pre-order"}</Badge>
-        <Badge tone={["paid", "ready", "completed"].includes(o.status) ? "ok" : "wait"}>{STATUS[o.status] ?? o.status}</Badge>
-      </div>
-      {["awaiting_verification", "paid", "preparing", "ready", "payment_rejected", "completed"].includes(o.status) && <StatusNotifier status={o.status} />}
-      <p>Atas nama {o.customer_name}. {code ? "Nomor antreanmu sudah tersedia." : "Simpan kode pesanan ini."}</p>
-
-      {o.status === "ready" && (
-        <Card className="!border-jade !bg-jade text-center text-white">
-          <p className="font-display text-2xl font-extrabold">Pesananmu siap diambil!</p>
-          <p>Sebutkan nomor <b>{code}</b> ke petugas.</p>
-        </Card>
-      )}
-      {o.status === "completed" && <Card className="!border-jade !bg-jade text-center text-white"><p className="font-display text-2xl font-extrabold">Pesanan selesai!</p><p>Terima kasih, pesananmu sudah diambil.</p></Card>}
-
-      {o.status === "pending_payment" && (
-        <Card className="space-y-3">
-          <img src={qris} alt="QRIS pembayaran" className="mx-auto w-64 max-w-full" />
-          <p className="text-center">Bayar tepat <b className="font-display text-2xl">{formatRupiah(o.total_amount)}</b></p>
-          <PayPanel token={token} expiresAt={o.expires_at} />
-        </Card>
-      )}
-      {o.status === "awaiting_verification" && <Card><p>Pembayaranmu sedang dicek operator. Halaman ini akan berubah otomatis, tidak perlu ditutup.</p></Card>}
-      {o.status === "payment_rejected" && <Card><p>Pembayaran belum bisa diverifikasi. Silakan datang ke operator dengan kode <b>{o.public_code}</b>.</p></Card>}
-      {o.status === "expired" && <Card><p>Waktu pembayaran habis dan pesanan dibatalkan otomatis. Silakan buat pesanan baru.</p></Card>}
-
-      {code && o.status !== "completed" && (
-        <Card className="space-y-1 text-center">
-          <p className="text-sm opacity-70">Nomor antrean</p>
-          <p className="font-display text-5xl font-extrabold">{code}</p>
-          {ahead !== null && <p>Di depanmu: <b>{ahead}</b> pesanan</p>}
-          {o.type === "direct" && o.estimate_minutes != null && <p>Estimasi waktu tunggu: <b>{o.estimate_minutes} menit</b></p>}
-          {o.type === "preorder" && (o.estimate_date || pickup) && <p>Siap diambil: <b>{fmtDate((o.estimate_date ?? pickup) as string)}</b></p>}
-        </Card>
-      )}
+      <OrderStatusRefresh
+        token={token}
+        status={o.status}
+        type={o.type}
+        customerName={o.customer_name}
+        code={code}
+        publicCode={o.public_code}
+        totalAmount={o.total_amount}
+        expiresAt={o.expires_at}
+        qris={qris}
+        ahead={ahead}
+        estimateMinutes={o.estimate_minutes}
+        estimateDate={o.estimate_date}
+        pickupDate={pickup}
+      />
 
       {o.order_items.map((i: any, idx: number) => (
         <Card key={idx}><div className="flex justify-between"><span>{i.qty}× {i.product_name_snapshot}</span><span>{formatRupiah(i.subtotal)}</span></div>
